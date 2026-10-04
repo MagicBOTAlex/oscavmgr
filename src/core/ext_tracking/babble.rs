@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
+    net::{IpAddr, SocketAddr, UdpSocket},
     sync::{
         mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
@@ -27,6 +27,7 @@ static STA_ETVR0: Lazy<Arc<str>> = Lazy::new(|| format!("{}", "ETVR".color(Color
 
 pub(super) struct BabbleEtvrReceiver {
     listen_port: u16,
+    bind_ip: IpAddr,
     sender: SyncSender<Box<BabbleEtvrEvent>>,
     receiver: Receiver<Box<BabbleEtvrEvent>>,
     last_received_babble: Instant,
@@ -34,10 +35,11 @@ pub(super) struct BabbleEtvrReceiver {
 }
 
 impl BabbleEtvrReceiver {
-    pub fn new(listen_port: u16) -> Self {
+    pub fn new(listen_port: u16, bind_ip: IpAddr) -> Self {
         let (sender, receiver) = sync_channel(128);
         Self {
             listen_port,
+            bind_ip,
             sender,
             receiver,
             last_received_babble: Instant::now(),
@@ -50,6 +52,7 @@ impl FaceReceiver for BabbleEtvrReceiver {
     fn start_loop(&mut self) {
         let sender = self.sender.clone();
         let listen_port = self.listen_port;
+        let bind_ip = self.bind_ip;
 
         let babble_recv_port = listen_port + 10;
         let babble_http_port = babble_recv_port + 1;
@@ -113,7 +116,7 @@ impl FaceReceiver for BabbleEtvrReceiver {
         log::info!("");
         log::info!("{}", *INSTRUCTIONS_END);
 
-        thread::spawn(move || babble_loop(listen_port, sender));
+        thread::spawn(move || babble_loop(listen_port, bind_ip, sender));
     }
 
     fn receive(&mut self, data: &mut UnifiedTrackingData, state: &mut AppState) {
@@ -141,9 +144,9 @@ impl FaceReceiver for BabbleEtvrReceiver {
     }
 }
 
-fn babble_loop(listen_port: u16, mut sender: SyncSender<Box<BabbleEtvrEvent>>) {
+fn babble_loop(listen_port: u16, bind_ip: IpAddr, mut sender: SyncSender<Box<BabbleEtvrEvent>>) {
     loop {
-        if let Some(()) = receive_babble_osc(listen_port, &mut sender) {
+        if let Some(()) = receive_babble_osc(listen_port, bind_ip, &mut sender) {
             break;
         } else {
             thread::sleep(Duration::from_millis(5000));
@@ -153,10 +156,11 @@ fn babble_loop(listen_port: u16, mut sender: SyncSender<Box<BabbleEtvrEvent>>) {
 
 fn receive_babble_osc(
     listen_port: u16,
+    bind_ip: IpAddr,
     sender: &mut SyncSender<Box<BabbleEtvrEvent>>,
 ) -> Option<()> {
-    let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
-    let listener = UdpSocket::bind(SocketAddr::new(ip, listen_port)).expect("bind listener socket");
+    let listener =
+        UdpSocket::bind(SocketAddr::new(bind_ip, listen_port)).expect("bind listener socket");
     let mut buf = [0u8; rosc::decoder::MTU];
     loop {
         if let Ok((size, _addr)) = listener.recv_from(&mut buf) {

@@ -56,7 +56,7 @@ pub struct Args {
     #[command(subcommand)]
     face: FaceSetup,
 
-    /// Expose and lisen on 0.0.0.0, instead of localhost
+    /// Expose all listeners on 0.0.0.0, instead of localhost
     #[arg(long, default_value_t = false)]
     expose: bool,
 

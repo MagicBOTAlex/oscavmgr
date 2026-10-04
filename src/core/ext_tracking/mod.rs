@@ -1,4 +1,4 @@
-use std::{array, str::FromStr, sync::Arc};
+use std::{array, net::IpAddr, str::FromStr, sync::Arc};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -57,7 +57,7 @@ pub struct ExtTracking {
 }
 
 impl ExtTracking {
-    pub fn new(setup: FaceSetup) -> Self {
+    pub fn new(setup: FaceSetup, bind_ip: IpAddr) -> Self {
         let default_combined = vec![
             CombinedExpression::BrowExpressionLeft,
             CombinedExpression::BrowExpressionRight,
@@ -83,6 +83,8 @@ impl ExtTracking {
             UnifiedExpressions::JawOpen,
             UnifiedExpressions::MouthClosed,
         ];
+
+        let _ = bind_ip;
 
         let mut params = array::from_fn(|_| None);
 
@@ -121,7 +123,7 @@ impl ExtTracking {
             #[cfg(feature = "openxr")]
             FaceSetup::Openxr => Box::new(OpenXrReceiver::new()),
             #[cfg(feature = "babble")]
-            FaceSetup::Babble { listen } => Box::new(BabbleEtvrReceiver::new(listen)),
+            FaceSetup::Babble { listen } => Box::new(BabbleEtvrReceiver::new(listen, bind_ip)),
         };
 
         let mut me = Self {
